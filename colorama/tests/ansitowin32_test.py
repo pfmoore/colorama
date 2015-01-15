@@ -40,7 +40,9 @@ class StreamWrapperTest(TestCase):
 class AnsiToWin32Test(TestCase):
 
     def testInit(self):
-        mockStdout = object()
+        class DummyStream:
+            closed = False
+        mockStdout = DummyStream()
         auto = object()
         stream = AnsiToWin32(mockStdout, autoreset=auto)
         self.assertEqual(stream.wrapped, mockStdout)
@@ -141,17 +143,18 @@ class AnsiToWin32Test(TestCase):
         stream.write_and_convert( '\033[40m\033[41m' )
         self.assertFalse( stream.wrapped.write.called )
 
-    def testWriteAndConvertCallsWin32WithParamsAndCommand(self):
+    def testWriteAndConvertCallsWin32WithPrivateParamsAndCommand(self):
         stream = AnsiToWin32(Mock())
         stream.convert = True
         stream.call_win32 = Mock()
         stream.extract_params = Mock(return_value='params')
         data = {
-            'abc\033[adef':         ('a', 'params'),
-            'abc\033[;;bdef':       ('b', 'params'),
-            'abc\033[0cdef':        ('c', 'params'),
-            'abc\033[;;0;;Gdef':    ('G', 'params'),
-            'abc\033[1;20;128Hdef': ('H', 'params'),
+            'abc\033[adef':         (None, 'a', 'params'),
+            'abc\033[;;bdef':       (None, 'b', 'params'),
+            'abc\033[0cdef':        (None, 'c', 'params'),
+            'abc\033[;;0;;Gdef':    (None, 'G', 'params'),
+            'abc\033[1;20;128Hdef': (None, 'H', 'params'),
+            'abc\033[?25hdef':      ('?', 'h', 'params'),
         }
         for datum, expected in data.items():
             stream.call_win32.reset_mock()
@@ -178,7 +181,8 @@ class AnsiToWin32Test(TestCase):
             '11;22;33;44;55': (11, 22, 33, 44, 55),
         }
         for datum, expected in data.items():
-            self.assertEqual(stream.extract_params('m', datum), expected)
+            self.assertEqual(stream.extract_params(None, 'm', datum), expected)
+        self.assertEqual(stream.extract_params('?', 'l', '25'), (25,))
 
     def testCallWin32UsesLookup(self):
         listener = Mock()
@@ -188,7 +192,7 @@ class AnsiToWin32Test(TestCase):
             2: (lambda *_, **__: listener(22),),
             3: (lambda *_, **__: listener(33),),
         }
-        stream.call_win32('m', (3, 1, 99, 2))
+        stream.call_win32(None, 'm', (3, 1, 99, 2))
         self.assertEqual(
             [a[0][0] for a in listener.call_args_list],
             [33, 11, 22] )

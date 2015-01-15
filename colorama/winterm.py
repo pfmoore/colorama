@@ -149,3 +149,19 @@ class WinTerm(object):
 
     def set_title(self, title):
         win32.SetConsoleTitle(title)
+
+    def show_cursor(self, on_stderr=False):
+        handle = win32.STDOUT
+        if on_stderr:
+            handle = win32.STDERR
+        cursor_info = win32.GetConsoleCursorInfo(handle)
+        cursor_info.bVisible = True
+        win32.SetConsoleCursorInfo(cursor_info, handle)
+
+    def hide_cursor(self, on_stderr=False):
+        handle = win32.STDOUT
+        if on_stderr:
+            handle = win32.STDERR
+        cursor_info = win32.GetConsoleCursorInfo(handle)
+        cursor_info.visible = False
+        win32.SetConsoleCursorInfo(cursor_info, handle)

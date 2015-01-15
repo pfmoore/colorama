@@ -42,7 +42,7 @@ class AnsiToWin32(object):
     sequences from the text, and if outputting to a tty, will convert them into
     win32 function calls.
     '''
-    ANSI_CSI_RE = re.compile('\033\[((?:\d|;)*)([a-zA-Z])')     # Control Sequence Introducer
+    ANSI_CSI_RE = re.compile('\033\[(\?)?((?:\d|;)*)([a-zA-Z])')     # Control Sequence Introducer
     ANSI_OSC_RE = re.compile('\033\]((?:.|;)*?)(\x07)')         # Operating System Command
 
     def __init__(self, wrapped, convert=None, strip=None, autoreset=False):
@@ -140,7 +140,7 @@ class AnsiToWin32(object):
 
     def reset_all(self):
         if self.convert:
-            self.call_win32('m', (0,))
+            self.call_win32(None, 'm', (0,))
         elif not self.wrapped.closed and is_a_tty(self.wrapped):
             self.wrapped.write(Style.RESET_ALL)
 
@@ -167,14 +167,19 @@ class AnsiToWin32(object):
             self.wrapped.flush()
 
 
-    def convert_ansi(self, paramstring, command):
+    def convert_ansi(self, private, paramstring, command):
         if self.convert:
-            params = self.extract_params(command, paramstring)
-            self.call_win32(command, params)
+            params = self.extract_params(private, command, paramstring)
+            self.call_win32(private, command, params)
 
 
-    def extract_params(self, command, paramstring):
-        if command in 'Hf':
+    def extract_params(self, private, command, paramstring):
+        if private == '?' and command in 'hl':
+            # The only valid params is 25, but we deal with the general case
+            params = tuple(int(p) for p in paramstring.split(';') if len(p) != 0)
+            if len(params) == 0:
+                params = (0,)
+        elif command in 'Hf':
             params = tuple(int(p) if len(p) != 0 else 1 for p in paramstring.split(';'))
             while len(params) < 2:
                 # defaults:
@@ -191,8 +196,14 @@ class AnsiToWin32(object):
         return params
 
 
-    def call_win32(self, command, params):
-        if command == 'm':
+    def call_win32(self, private, command, params):
+        if private:
+            if private == '?' and params == (25,):
+                if command == 'h':
+                    winterm.show_cursor(on_stderr=self.on_stderr)
+                elif command == 'l':
+                    winterm.hide_cursor(on_stderr=self.on_stderr)
+        elif command == 'm':
             for param in params:
                 if param in self.win32_calls:
                     func_args = self.win32_calls[param]

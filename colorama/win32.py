@@ -35,6 +35,17 @@ else:
                 , self.dwMaximumWindowSize.Y, self.dwMaximumWindowSize.X
             )
 
+    class CONSOLE_CURSOR_INFO(Structure):
+        """struct in wincon.h."""
+        _fields_ = [
+            ("dwSize", wintypes.DWORD),
+            ("bVisible", wintypes.BOOL),
+        ]
+        def __str__(self):
+            return '(%d,%d)' % (
+                self.dwSize, self.bVisible
+            )
+
     _GetStdHandle = windll.kernel32.GetStdHandle
     _GetStdHandle.argtypes = [
         wintypes.DWORD,
@@ -47,6 +58,20 @@ else:
         POINTER(CONSOLE_SCREEN_BUFFER_INFO),
     ]
     _GetConsoleScreenBufferInfo.restype = wintypes.BOOL
+
+    _GetConsoleCursorInfo = windll.kernel32.GetConsoleCursorInfo
+    _GetConsoleCursorInfo.argtypes = [
+        wintypes.HANDLE,
+        POINTER(CONSOLE_CURSOR_INFO),
+    ]
+    _GetConsoleCursorInfo.restype = wintypes.BOOL
+
+    _SetConsoleCursorInfo = windll.kernel32.SetConsoleCursorInfo
+    _SetConsoleCursorInfo.argtypes = [
+        wintypes.HANDLE,
+        POINTER(CONSOLE_CURSOR_INFO),
+    ]
+    _SetConsoleCursorInfo.restype = wintypes.BOOL
 
     _SetConsoleTextAttribute = windll.kernel32.SetConsoleTextAttribute
     _SetConsoleTextAttribute.argtypes = [
@@ -99,6 +124,17 @@ else:
         success = _GetConsoleScreenBufferInfo(
             handle, byref(csbi))
         return csbi
+
+    def GetConsoleCursorInfo(stream_id=STDOUT):
+        handle = handles[stream_id]
+        cci = CONSOLE_CURSOR_INFO()
+        success = _GetConsoleCursorInfo(
+            handle, byref(cci))
+        return cci
+
+    def SetConsoleCursorInfo(cci, stream_id=STDOUT):
+        handle = handles[stream_id]
+        return _SetConsoleCursorInfo(handle, byref(cci))
 
     def SetConsoleTextAttribute(stream_id, attrs):
         handle = handles[stream_id]
